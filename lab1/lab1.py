@@ -10,10 +10,11 @@ def connect_to_db():
     return conn
 
 
-def insert_artist(artist=None):
+def insert_artist(artist=None, fans=None):
     if artist is None:
         artist = input("Print artist name\n")
-    fans = int(input("Print number of funs\n"))
+    if fans is None:
+        fans = int(input("Print number of funs\n"))
     conn = connect_to_db()
     cur = conn.cursor()
     cur.execute("SELECT max(id) FROM artist")
@@ -25,11 +26,13 @@ def insert_artist(artist=None):
     conn.close()
 
 
-def insert_album(album=None, artist=None):
+def insert_album(album=None, artist=None, rait=None, date_str=None, fans=None):
     if album is None:
         album = input("Print album name\n")
-    rait = float(input("Print album raiting\n"))
-    date_str = input("Print date (YYYY-MM-DD)\n")
+    if rait is None:
+        rait = float(input("Print album raiting\n"))
+    if date_str is None:
+        date_str = input("Print date (YYYY-MM-DD)\n")
     release = parse_date(date_str)
     conn = connect_to_db()
     cur = conn.cursor()
@@ -37,7 +40,7 @@ def insert_album(album=None, artist=None):
         artist = input("Print artist\n")
     cur.execute("SELECT id FROM artist WHERE name = '%s' " % (artist))
     if cur.rowcount == 0:
-        insert_artist(artist)
+        insert_artist(artist, fans)
     cur.execute("SELECT max(id) FROM artist")
     artist_id = int(cur.fetchone()[0])
     cur.execute("SELECT max(id) FROM album")
@@ -49,25 +52,42 @@ def insert_album(album=None, artist=None):
     conn.close()
 
 
-def insert_song():
-    song = input("Print song name\n")
-    artist = input("Print artist\n")
+def generate_songs(songs=0, counter=0):
+    while (counter <= songs):
+        song = "song" + str(counter)
+        artist = "artist" + str(counter)
+        single = "no"
+        album = "album" + str(0)
+        fans = 9938
+        rait = 7.6
+        date = "2000-10-21"
+        insert_song(song, artist, single, album, fans, rait, date)
+        counter = counter + 1
+
+
+def insert_song(song=None, artist=None, single_str=None, album=None, fans=None, rait=None, date_str=None):
+    if song is None:
+        song = input("Print song name\n")
+    if artist is None:
+        artist = input("Print artist\n")
     conn = connect_to_db()
     cur = conn.cursor()
     cur.execute("SELECT id FROM artist WHERE name = '%s' " % (artist))
     if cur.rowcount == 0:
-        insert_artist(artist)
-    single_str = input("Is it single?(yes/no)\n")
+        insert_artist(artist, fans)
+    if single_str is None:
+        single_str = input("Is it single?(yes/no)\n")
     single = False
 
     if single_str == "yes":
         single = True
 
     if not single:
-        album = input("Print album name\n")
+        if album is None:
+            album = input("Print album name\n")
         cur.execute("SELECT id FROM album WHERE title = '%s' " % (album))
         if cur.rowcount == 0:
-            insert_album(album, artist)
+            insert_album(album, artist, rait, date_str, fans)
 
     cur.execute("SELECT max(id) FROM artist")
     artist_id = int(cur.fetchone()[0])
@@ -131,48 +151,35 @@ def delete_artist():
     if cur.rowcount == 0:
         return
     artist_id = int(cur.fetchone()[0])
-    cur.execute("SELECT title FROM album WHERE artist_id = %s " %(artist_id))
+    cur.execute("SELECT title FROM album WHERE artist_id = %s " % (artist_id))
     for row in cur.fetchall():
         delete_album(row[0])
-    cur.execute("SELECT name FROM song WHERE artist_id = %s " %(artist_id))
+    cur.execute("SELECT name FROM song WHERE artist_id = %s " % (artist_id))
     for row in cur.fetchall():
         delete_song(row[0])
-    cur.execute("DELETE FROM artist WHERE id = %s " %(artist_id))
+    cur.execute("DELETE FROM artist WHERE id = %s " % (artist_id))
     conn.commit()
     cur.close()
     conn.close()
 
 
-def find_singles():
-    single_str = input("Is it single?(yes/no)\n")
-    single = False
-    if single_str == "yes":
-        single = True
-    if single:
-        conn = connect_to_db()
-        cur = conn.cursor()
-        cur.execute("SELECT song.name, artist.name FROM song, artist "
-                    "WHERE song.single = %s AND song.artist_id = artist.id" %(single))
-        print("SONG        |ARTIST   \n")
-        for row in cur.fetchall():
-            print(row[0]+ "  " +row[1])
-
-
-def find_by_date():
+def find_songs():
     start_date = parse_date(input("Print start date of album(YYYY-MM-DD):\n"))
     end_date = parse_date(input("Print end date of album(YYYY-MM-DD):\n"))
     conn = connect_to_db()
     cur = conn.cursor()
+    single_str = input("Is it single?(yes/no)\n")
     single = False
+    if single_str == "yes":
+        single = True
     cur.execute("SELECT song.name, artist.name, album.title, album.release "
                 "FROM song, artist, album, song_album "
                 "WHERE song.single = %s AND song.artist_id = artist.id AND "
                 "album.release >= '%s' AND album.release <= '%s' AND "
                 "album.id = song_album.album_id AND song.id = song_album.song_id "
                 % (single, start_date.date(), end_date.date()))
-    print("SONG        |ARTIST   |ALBUM   |ALBUM DATE ")
     for row in cur.fetchall():
-        print(row[0] + "  " + row[1] + "  " + row[2] + "  " + row[3].isoformat())
+        print(row)
 
 
 def parse_date(string):
@@ -182,6 +189,45 @@ def parse_date(string):
     return datetime.datetime(year, month, day)
 
 
+def update_attribute():
+    print("1.Rename song")
+    print("2.Rename artist")
+    print("3.Rename album")
+    item = int(input())
+    if item == 1:
+        attr = "name"
+        table = "song"
+    elif item == 2:
+        attr = "name"
+        table = "artist"
+    elif item == 3:
+        attr = "title"
+        table = "album"
+
+    old_val = input("Print name of " + table + "\n")
+    new_val = input("Print new value\n")
+    conn = connect_to_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE " + table + " SET " + attr + " = %s "
+                + " WHERE " + attr + " = %s ", (new_val, old_val))
+    conn.commit()
+
+
+def search():
+    type = int(input("1.Word no included\n"
+                     "2.Search phrase\n"))
+    item = input("Print str for searching:\n")
+    conn = connect_to_db()
+    cur = conn.cursor()
+    if type == 2:
+        cur.execute("SELECT lyrics FROM song  WHERE to_tsvector('russian', lyrics) @@ phraseto_tsquery('russian', '%s') "
+                    % (item))
+        print(cur.fetchall())
+    if type == 1:
+        cur.execute("SELECT lyrics FROM song  WHERE not to_tsvector('russian', lyrics) @@ to_tsquery('russian', '%s') "
+                % (item))
+        print(cur.fetchall())
+
 def print_menu():
     """output menu"""
     print("1. Add Artist.")
@@ -190,12 +236,14 @@ def print_menu():
     print("4. Delete Song.")
     print("5. Delete Album.")
     print("6. Delete Artist.")
-    print("7. Find By Date.")
-    print("8. Find By Single.")
+    print("7. Find Songs.")
+    print("8. Rename.")
+    print("9. Search.")
     print("10. Exit.")
 
 
 def program_cycle():
+    #generate_songs(100, 10)
     while True:
         print_menu()
         item = int(input())
@@ -213,9 +261,11 @@ def program_cycle():
         elif item == 6:
             delete_artist()
         elif item == 7:
-            find_by_date()
+            find_songs()
         elif item == 8:
-            find_singles()
+            update_attribute()
+        elif item == 9:
+            search()
         elif item == 10:
             break
 
